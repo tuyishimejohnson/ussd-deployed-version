@@ -31,7 +31,7 @@ const UserSessionSchema = new mongoose.Schema({
   selectedDistrict: String,
   selectedSector: String,
   selectedCell: String,
-  selectedVillage: String,
+  selectedVillage: String, // Added this field
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
@@ -117,7 +117,7 @@ const messages = {
     selectCell: "CON Select your cell:",
     selectVillage: "CON Select your village:",
     completion:
-      "END Thank you! Your selection has been recorded.\nDistrict: {district}\nSector: {sector}\nCell: {cell}",
+      "END Thank you! Your selection has been recorded.\nDistrict: {district}\nSector: {sector}\nCell: {cell}\nVillage: {village}",
     error: "END Sorry, an error occurred. Please try again.",
     invalidInput: "CON Invalid input. Please try again:",
     goBack: "0. Go Back",
@@ -147,6 +147,9 @@ app.post("/", async (req, res) => {
     console.log("=======================>", locationData);
     const inputArray = text.split("*");
     const lastInput = inputArray[inputArray.length - 1];
+
+    console.log("Current session step:", session.currentStep);
+    console.log("Last input:", lastInput);
 
     // Language selection
     if (text === "") {
@@ -269,6 +272,7 @@ app.post("/", async (req, res) => {
     }
     // Handle cell selection
     else if (session.currentStep === "cell") {
+      console.log("Processing cell selection...");
       const lang = session.selectedLanguage || "en";
       const msg = messages[lang];
       const district = locationData.districts.find(
@@ -291,24 +295,14 @@ app.post("/", async (req, res) => {
         const cellIndex = parseInt(lastInput) - 1;
         if (cellIndex >= 0 && cellIndex < sector.cells.length) {
           const selectedCell = sector.cells[cellIndex];
+          console.log("Selected cell:", selectedCell.name);
+          console.log("Cell villages:", selectedCell.villages);
+
+          // FIXED: Set step to "village" instead of "completed"
           await updateSession(phoneNumber, {
             selectedCell: selectedCell.name,
             currentStep: "village",
           });
-
-          /* response = msg.selectVillage
-            .replace("{district}", session.selectedDistrict)
-            .replace("{sector}", session.selectedSector)
-            .replace("{cell}", selectedCell.name);
-        } else {
-          response = msg.invalidInput;
-          response += "\n" + msg.selectCell;
-          sector.cells.forEach((cell, index) => {
-            const cellName = lang === "en" ? cell.name : cell.nameRw;
-            response += `\n${index + 1}. ${cellName}`;
-          });
-          response += `\n${msg.goBack}`;
-        } */
 
           response = msg.selectVillage;
           selectedCell.villages.forEach((village, index) => {
@@ -328,9 +322,9 @@ app.post("/", async (req, res) => {
         }
       }
     }
-
-    // Handle village selection considering the data in locations.js
+    // Handle village selection
     else if (session.currentStep === "village") {
+      console.log("Processing village selection...");
       const lang = session.selectedLanguage || "en";
       const msg = messages[lang];
       const district = locationData.districts.find(
@@ -354,6 +348,8 @@ app.post("/", async (req, res) => {
         const villageIndex = parseInt(lastInput) - 1;
         if (villageIndex >= 0 && villageIndex < cell.villages.length) {
           const selectedVillage = cell.villages[villageIndex];
+          console.log("Selected village:", selectedVillage.name);
+
           await updateSession(phoneNumber, {
             selectedVillage: selectedVillage.name,
             currentStep: "completed",
@@ -376,6 +372,7 @@ app.post("/", async (req, res) => {
       }
     }
 
+    // FIXED: Single setTimeout at the end
     setTimeout(() => {
       res.send(response);
     }, 1000);
@@ -434,7 +431,5 @@ app.get("/", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-  console.log(`USSD endpoint: http://localhost:${port}/`);
-  console.log(`Web UI: http://localhost:${port}/`);
+  console.log(`Server running on port ${port}`);
 });
