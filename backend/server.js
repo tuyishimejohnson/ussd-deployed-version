@@ -31,6 +31,7 @@ const UserSessionSchema = new mongoose.Schema({
   selectedDistrict: String,
   selectedSector: String,
   selectedCell: String,
+  selectedVillage: String,
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 });
@@ -292,13 +293,30 @@ app.post("/", async (req, res) => {
           const selectedCell = sector.cells[cellIndex];
           await updateSession(phoneNumber, {
             selectedCell: selectedCell.name,
-            currentStep: "completed",
+            currentStep: "village",
           });
 
-          response = msg.completion
+          /* response = msg.selectVillage
             .replace("{district}", session.selectedDistrict)
             .replace("{sector}", session.selectedSector)
             .replace("{cell}", selectedCell.name);
+        } else {
+          response = msg.invalidInput;
+          response += "\n" + msg.selectCell;
+          sector.cells.forEach((cell, index) => {
+            const cellName = lang === "en" ? cell.name : cell.nameRw;
+            response += `\n${index + 1}. ${cellName}`;
+          });
+          response += `\n${msg.goBack}`;
+        } */
+
+          response = msg.selectVillage;
+          selectedCell.villages.forEach((village, index) => {
+            const villageName = lang === "en" ? village.name : village.nameRw;
+            response += `\n${index + 1}. ${villageName}`;
+          });
+          response += `\n${msg.goBack}`;
+          console.log("Village selection response:", response);
         } else {
           response = msg.invalidInput;
           response += "\n" + msg.selectCell;
@@ -356,10 +374,6 @@ app.post("/", async (req, res) => {
           response += `\n${msg.goBack}`;
         }
       }
-
-      setTimeout(() => {
-        res.send(response);
-      }, 1000);
     }
 
     setTimeout(() => {
