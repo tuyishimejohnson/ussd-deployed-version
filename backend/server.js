@@ -309,6 +309,57 @@ app.post("/", async (req, res) => {
       }
     }
 
+    // Handle village selection considering the data in locations.js
+    else if (session.currentStep === "village") {
+      const lang = session.selectedLanguage || "en";
+      const msg = messages[lang];
+      const district = locationData.districts.find(
+        (d) => d.name === session.selectedDistrict
+      );
+      const sector = district.sectors.find(
+        (s) => s.name === session.selectedSector
+      );
+      const cell = sector.cells.find((c) => c.name === session.selectedCell);
+
+      if (lastInput === "0") {
+        // Go back to cell selection
+        response = msg.selectCell;
+        sector.cells.forEach((cell, index) => {
+          const cellName = lang === "en" ? cell.name : cell.nameRw;
+          response += `\n${index + 1}. ${cellName}`;
+        });
+        response += `\n${msg.goBack}`;
+        await updateSession(phoneNumber, { currentStep: "cell" });
+      } else {
+        const villageIndex = parseInt(lastInput) - 1;
+        if (villageIndex >= 0 && villageIndex < cell.villages.length) {
+          const selectedVillage = cell.villages[villageIndex];
+          await updateSession(phoneNumber, {
+            selectedVillage: selectedVillage.name,
+            currentStep: "completed",
+          });
+
+          response = msg.completion
+            .replace("{district}", session.selectedDistrict)
+            .replace("{sector}", session.selectedSector)
+            .replace("{cell}", session.selectedCell)
+            .replace("{village}", selectedVillage.name);
+        } else {
+          response = msg.invalidInput;
+          response += "\n" + msg.selectVillage;
+          cell.villages.forEach((village, index) => {
+            const villageName = lang === "en" ? village.name : village.nameRw;
+            response += `\n${index + 1}. ${villageName}`;
+          });
+          response += `\n${msg.goBack}`;
+        }
+      }
+
+      setTimeout(() => {
+        res.send(response);
+      }, 1000);
+    }
+
     setTimeout(() => {
       res.send(response);
     }, 1000);
