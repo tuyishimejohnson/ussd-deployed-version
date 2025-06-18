@@ -114,6 +114,7 @@ const messages = {
     selectDistrict: "CON Select your district:",
     selectSector: "CON Select your sector:",
     selectCell: "CON Select your cell:",
+    selectVillage: "CON Select your village:",
     completion:
       "END Thank you! Your selection has been recorded.\nDistrict: {district}\nSector: {sector}\nCell: {cell}",
     error: "END Sorry, an error occurred. Please try again.",
@@ -125,8 +126,9 @@ const messages = {
     selectDistrict: "CON Hitamo akarere kawe:",
     selectSector: "CON Hitamo umurenge wawe:",
     selectCell: "CON Hitamo akagari kawe:",
+    selectVillage: "CON Hitamo umudugudu wawe:",
     completion:
-      "END Murakoze! Amakuru yanyu yarakiriwe.\nAkarere: {district}\nUmurenge: {sector}\nAkagari: {cell}",
+      "END Murakoze! Amakuru yanyu yarakiriwe.\nAkarere: {district}\nUmurenge: {sector}\nAkagari: {cell}\nUmudugudu: {village}",
     error: "END Ihangane, habaye ikosa. Ongera ugerageze.",
     invalidInput: "CON Ikinyuranyo kidakwiye. Ongera ugerageze:",
     goBack: "0. Subira Inyuma",
