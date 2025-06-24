@@ -3,9 +3,16 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const cors = require("cors");
-
+const router = require("./routes/auth");
 const app = express();
-const port = 8000;
+app.use(express.json());
+const port = process.env.PORT || 8000;
+const LocationData = require("./locations");
+const CHWMockData = require("./chw-mock-data");
+const CHW = require("./models/CHW");
+const UserSession = require("./models/UserSession");
+const Location = require("./models/Location");
+const Appointment = require("./models/Appointments");
 
 // Connect to MongoDB
 const databaseUrl = process.env.DATABASE_URL;
@@ -21,69 +28,35 @@ db.once("open", () => {
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static("public")); // Serve static files
+app.use(express.static("public"));
+app.use("/api/auth", router);
 
-// Create Schema
-const UserSessionSchema = new mongoose.Schema({
-  phoneNumber: String,
-  currentStep: { type: String, default: "language" },
-  selectedLanguage: String,
-  selectedDistrict: String,
-  selectedSector: String,
-  selectedCell: String,
-  selectedVillage: String, // Added this field
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now },
-});
-
-const LocationSchema = new mongoose.Schema({
-  districts: [
-    {
-      name: String,
-      nameRw: String,
-      sectors: [
-        {
-          name: String,
-          nameRw: String,
-          cells: [
-            {
-              name: String,
-              nameRw: String,
-              villages: [
-                {
-                  name: String,
-                  nameRw: String,
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-});
-
-const LocationData = require("./locations");
-const UserSession = mongoose.model("UserSession", UserSessionSchema);
-const Location = mongoose.model("Location", LocationSchema);
-
-// Initialize location data and add them on mongoDB
-const initializeLocationData = async () => {
+// Initialize data
+const initializeData = async () => {
   try {
-    const existingData = await Location.findOne();
-    if (!existingData) {
-      //await Location.deleteMany({});
+    // Initialize location data
+    const existingLocationData = await Location.findOne();
+    if (!existingLocationData) {
       const locationData = new Location(LocationData);
       await locationData.save();
       console.log("Location data initialized");
     }
+
+    // Initialize CHW mock data
+    // TODO: This mock data will be replaced with real CHW data from the web interface
+    const existingCHWs = await CHW.countDocuments();
+    if (!existingCHWs) {
+      //await CHW.deleteMany({});
+      await CHW.insertMany(CHWMockData);
+      console.log("CHW mock data initialized");
+    }
   } catch (error) {
-    console.error("Error initializing location data:", error);
+    console.error("Error initializing data:", error);
   }
 };
 
-// Initialize location data on startup
-initializeLocationData();
+// Initialize data on startup
+initializeData();
 
 // Helper functions
 const getOrCreateSession = async (phoneNumber) => {
@@ -107,7 +80,26 @@ const getLocationData = async () => {
   return await Location.findOne();
 };
 
-// USSD Text Messages
+const getCHWsByVillage = async (district, sector, cell, village) => {
+  return await CHW.find({
+    district,
+    sector,
+    cell,
+    village,
+    isActive: true,
+  });
+};
+
+const isTimeInRange = (currentHour, startHour, endHour) => {
+  return currentHour >= startHour && currentHour < endHour;
+};
+
+const isWithinBusinessHours = (availableHours) => {
+  const currentHour = new Date().getHours();
+  return isTimeInRange(currentHour, availableHours.start, availableHours.end);
+};
+
+// USSD Messages
 const messages = {
   en: {
     welcome:
@@ -116,11 +108,22 @@ const messages = {
     selectSector: "CON Select your sector:",
     selectCell: "CON Select your cell:",
     selectVillage: "CON Select your village:",
+    selectCHW: "CON Available Community Health Workers:",
+    noCHWsAvailable:
+      "END Sorry, no Community Health Workers are currently available in your village. Please try again later.",
+    chwNotAvailable:
+      "END The selected CHW is currently not available. Available hours: {hours}",
+    appointmentBooked:
+      "END Appointment successfully booked!\nCHW: {chw}\nVillage: {village}\nYou will be contacted soon.",
     completion:
       "END Thank you! Your selection has been recorded.\nDistrict: {district}\nSector: {sector}\nCell: {cell}\nVillage: {village}",
     error: "END Sorry, an error occurred. Please try again.",
     invalidInput: "CON Invalid input. Please try again:",
     goBack: "0. Go Back",
+    available: "Available",
+    notAvailable: "Not Available",
+    specialization: "Specialization",
+    experience: "Experience",
   },
   rw: {
     welcome: "CON Murakaza neza kuri sisitemu y'ubuvuzi\nHitamo ururimi:",
@@ -128,11 +131,22 @@ const messages = {
     selectSector: "CON Hitamo umurenge wawe:",
     selectCell: "CON Hitamo akagari kawe:",
     selectVillage: "CON Hitamo umudugudu wawe:",
+    selectCHW: "CON Abashinzwe ubuzima bo mu mudugudu bahari:",
+    noCHWsAvailable:
+      "END Ihangane, nta bashinzwe ubuzima bahari mu mudugudu wawe. Ongera ugerageze nyuma.",
+    chwNotAvailable:
+      "END Ushinzwe ubuzima wahisemo ntabwo ari hafi. Amasaha akora: {hours}",
+    appointmentBooked:
+      "END Igihe cyo guhura cyarateguwe neza!\nUshinzwe ubuzima: {chw}\nUmudugudu: {village}\nUzavugana nawe vuba.",
     completion:
       "END Murakoze! Amakuru yanyu yarakiriwe.\nAkarere: {district}\nUmurenge: {sector}\nAkagari: {cell}\nUmudugudu: {village}",
     error: "END Ihangane, habaye ikosa. Ongera ugerageze.",
-    invalidInput: "CON Ikinyuranyo kidakwiye. Ongera ugerageze:",
+    invalidInput: "CON Ikinyuranyo cidakwiye. Ongera ugerageze:",
     goBack: "0. Subira Inyuma",
+    available: "Arahari",
+    notAvailable: "Ntahari",
+    specialization: "Ubumenyi",
+    experience: "Uburambe",
   },
 };
 
@@ -144,7 +158,6 @@ app.post("/", async (req, res) => {
 
     const session = await getOrCreateSession(phoneNumber);
     const locationData = await getLocationData();
-    console.log("=======================>", locationData);
     const inputArray = text.split("*");
     const lastInput = inputArray[inputArray.length - 1];
 
@@ -192,7 +205,6 @@ app.post("/", async (req, res) => {
       const msg = messages[lang];
 
       if (lastInput === "0") {
-        // Go back to language selection
         response = messages.en.welcome;
         response += "\n1. English";
         response += "\n2. Kinyarwanda";
@@ -236,7 +248,6 @@ app.post("/", async (req, res) => {
       );
 
       if (lastInput === "0") {
-        // Go back to district selection
         response = msg.selectDistrict;
         locationData.districts.forEach((district, index) => {
           const districtName = lang === "en" ? district.name : district.nameRw;
@@ -272,7 +283,6 @@ app.post("/", async (req, res) => {
     }
     // Handle cell selection
     else if (session.currentStep === "cell") {
-      console.log("Processing cell selection...");
       const lang = session.selectedLanguage || "en";
       const msg = messages[lang];
       const district = locationData.districts.find(
@@ -283,7 +293,6 @@ app.post("/", async (req, res) => {
       );
 
       if (lastInput === "0") {
-        // Go back to sector selection
         response = msg.selectSector;
         district.sectors.forEach((sector, index) => {
           const sectorName = lang === "en" ? sector.name : sector.nameRw;
@@ -295,10 +304,7 @@ app.post("/", async (req, res) => {
         const cellIndex = parseInt(lastInput) - 1;
         if (cellIndex >= 0 && cellIndex < sector.cells.length) {
           const selectedCell = sector.cells[cellIndex];
-          console.log("Selected cell:", selectedCell.name);
-          console.log("Cell villages:", selectedCell.villages);
 
-          // FIXED: Set step to "village" instead of "completed"
           await updateSession(phoneNumber, {
             selectedCell: selectedCell.name,
             currentStep: "village",
@@ -310,7 +316,6 @@ app.post("/", async (req, res) => {
             response += `\n${index + 1}. ${villageName}`;
           });
           response += `\n${msg.goBack}`;
-          console.log("Village selection response:", response);
         } else {
           response = msg.invalidInput;
           response += "\n" + msg.selectCell;
@@ -324,7 +329,6 @@ app.post("/", async (req, res) => {
     }
     // Handle village selection
     else if (session.currentStep === "village") {
-      console.log("Processing village selection...");
       const lang = session.selectedLanguage || "en";
       const msg = messages[lang];
       const district = locationData.districts.find(
@@ -336,7 +340,6 @@ app.post("/", async (req, res) => {
       const cell = sector.cells.find((c) => c.name === session.selectedCell);
 
       if (lastInput === "0") {
-        // Go back to cell selection
         response = msg.selectCell;
         sector.cells.forEach((cell, index) => {
           const cellName = lang === "en" ? cell.name : cell.nameRw;
@@ -348,18 +351,44 @@ app.post("/", async (req, res) => {
         const villageIndex = parseInt(lastInput) - 1;
         if (villageIndex >= 0 && villageIndex < cell.villages.length) {
           const selectedVillage = cell.villages[villageIndex];
-          console.log("Selected village:", selectedVillage.name);
 
           await updateSession(phoneNumber, {
             selectedVillage: selectedVillage.name,
-            currentStep: "completed",
+            currentStep: "chw_selection",
           });
 
-          response = msg.completion
-            .replace("{district}", session.selectedDistrict)
-            .replace("{sector}", session.selectedSector)
-            .replace("{cell}", session.selectedCell)
-            .replace("{village}", selectedVillage.name);
+          // Get CHWs for this village
+          const chws = await getCHWsByVillage(
+            session.selectedDistrict,
+            session.selectedSector,
+            session.selectedCell,
+            selectedVillage.name
+          );
+
+          if (chws.length === 0) {
+            response = msg.noCHWsAvailable;
+          } else {
+            response = msg.selectCHW;
+            chws.forEach((chw, index) => {
+              const chwName = lang === "en" ? chw.name : chw.nameRw;
+              const specializations =
+                lang === "en"
+                  ? chw.specializations.join(", ")
+                  : chw.specializationsRw.join(", ");
+              const experience =
+                lang === "en" ? chw.experience : chw.experienceRw;
+              const availability = isWithinBusinessHours(chw.availableHours)
+                ? msg.available
+                : msg.notAvailable;
+
+              response += `\n${index + 1}. ${chwName}`;
+              response += `\n   ${msg.specialization}: ${specializations}`;
+              response += `\n   ${msg.experience}: ${experience}`;
+              response += `\n   Status: ${availability}`;
+              response += "\n";
+            });
+            response += `\n${msg.goBack}`;
+          }
         } else {
           response = msg.invalidInput;
           response += "\n" + msg.selectVillage;
@@ -371,8 +400,96 @@ app.post("/", async (req, res) => {
         }
       }
     }
+    // Handle CHW selection
+    else if (session.currentStep === "chw_selection") {
+      const lang = session.selectedLanguage || "en";
+      const msg = messages[lang];
 
-    // FIXED: Single setTimeout at the end
+      if (lastInput === "0") {
+        // Go back to village selection
+        const district = locationData.districts.find(
+          (d) => d.name === session.selectedDistrict
+        );
+        const sector = district.sectors.find(
+          (s) => s.name === session.selectedSector
+        );
+        const cell = sector.cells.find((c) => c.name === session.selectedCell);
+
+        response = msg.selectVillage;
+        cell.villages.forEach((village, index) => {
+          const villageName = lang === "en" ? village.name : village.nameRw;
+          response += `\n${index + 1}. ${villageName}`;
+        });
+        response += `\n${msg.goBack}`;
+        await updateSession(phoneNumber, { currentStep: "village" });
+      } else {
+        const chwIndex = parseInt(lastInput) - 1;
+        const chws = await getCHWsByVillage(
+          session.selectedDistrict,
+          session.selectedSector,
+          session.selectedCell,
+          session.selectedVillage
+        );
+
+        if (chwIndex >= 0 && chwIndex < chws.length) {
+          const selectedCHW = chws[chwIndex];
+
+          // Check if CHW is available
+          if (!isWithinBusinessHours(selectedCHW.availableHours)) {
+            const hours = `${selectedCHW.availableHours.start}:00 - ${selectedCHW.availableHours.end}:00`;
+            response = msg.chwNotAvailable.replace("{hours}", hours);
+          } else {
+            // Book appointment
+            const appointment = new Appointment({
+              patientPhoneNumber: phoneNumber,
+              chwId: selectedCHW._id,
+              chwName: selectedCHW.name,
+              district: session.selectedDistrict,
+              sector: session.selectedSector,
+              cell: session.selectedCell,
+              village: session.selectedVillage,
+            });
+            await appointment.save();
+
+            await updateSession(phoneNumber, {
+              selectedCHW: selectedCHW.name,
+              selectedCHWId: selectedCHW._id.toString(),
+              appointmentBooked: true,
+              currentStep: "completed",
+            });
+
+            const chwName =
+              lang === "en" ? selectedCHW.name : selectedCHW.nameRw;
+            response = msg.appointmentBooked
+              .replace("{chw}", chwName)
+              .replace("{village}", session.selectedVillage);
+          }
+        } else {
+          response = msg.invalidInput;
+          response += "\n" + msg.selectCHW;
+          chws.forEach((chw, index) => {
+            const chwName = lang === "en" ? chw.name : chw.nameRw;
+            const specializations =
+              lang === "en"
+                ? chw.specializations.join(", ")
+                : chw.specializationsRw.join(", ");
+            const experience =
+              lang === "en" ? chw.experience : chw.experienceRw;
+            const availability = isWithinBusinessHours(chw.availableHours)
+              ? msg.available
+              : msg.notAvailable;
+
+            response += `\n${index + 1}. ${chwName}`;
+            response += `\n   ${msg.specialization}: ${specializations}`;
+            response += `\n   ${msg.experience}: ${experience}`;
+            response += `\n   Status: ${availability}`;
+            response += "\n";
+          });
+          response += `\n${msg.goBack}`;
+        }
+      }
+    }
+
     setTimeout(() => {
       res.send(response);
     }, 1000);
@@ -382,7 +499,7 @@ app.post("/", async (req, res) => {
   }
 });
 
-// API endpoints for the web interface
+// API endpoints
 app.get("/api/sessions", async (req, res) => {
   try {
     const sessions = await UserSession.find().sort({ updatedAt: -1 });
@@ -401,25 +518,56 @@ app.get("/api/locations", async (req, res) => {
   }
 });
 
+app.get("/api/chws", async (req, res) => {
+  try {
+    const chws = await CHW.find().sort({ village: 1, name: 1 });
+    res.json(chws);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/appointments", async (req, res) => {
+  try {
+    const appointments = await Appointment.find().sort({ createdAt: -1 });
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/stats", async (req, res) => {
   try {
     const totalSessions = await UserSession.countDocuments();
     const completedSessions = await UserSession.countDocuments({
       currentStep: "completed",
     });
+    const totalAppointments = await Appointment.countDocuments();
+    const totalCHWs = await CHW.countDocuments();
+    const activeCHWs = await CHW.countDocuments({ isActive: true });
+
     const languageStats = await UserSession.aggregate([
       { $group: { _id: "$selectedLanguage", count: { $sum: 1 } } },
     ]);
+
     const districtStats = await UserSession.aggregate([
       { $match: { selectedDistrict: { $exists: true } } },
       { $group: { _id: "$selectedDistrict", count: { $sum: 1 } } },
     ]);
 
+    const appointmentStats = await Appointment.aggregate([
+      { $group: { _id: "$village", count: { $sum: 1 } } },
+    ]);
+
     res.json({
       totalSessions,
       completedSessions,
+      totalAppointments,
+      totalCHWs,
+      activeCHWs,
       languageStats,
       districtStats,
+      appointmentStats,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -427,9 +575,20 @@ app.get("/api/stats", async (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/index.html");
+  res.json({
+    message: "CHW USSD Backend API",
+    version: "1.0.0",
+    endpoints: {
+      ussd: "POST /",
+      sessions: "GET /api/sessions",
+      locations: "GET /api/locations",
+      chws: "GET /api/chws",
+      appointments: "GET /api/appointments",
+      stats: "GET /api/stats",
+    },
+  });
 });
 
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`CHW USSD Backend running on port ${port}`);
 });
