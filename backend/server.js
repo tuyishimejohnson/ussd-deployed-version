@@ -619,6 +619,19 @@ app.post("/api/nutrition", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+app.post("/api/malaria", async (req, res) => {
+  try {
+    const data = req.body; // Receive data sent from frontend
+    console.log("data received ===============>", data);
+    // Save maternal data to the database
+    const malaria = new Malaria(data);
+    await malaria.save();
+    // For now, just send it back as confirmation
+    res.status(200).json({ message: "Maternal data received", data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.listen(port, () => {
   console.log(`CHW USSD Backend running on port ${port}`);
