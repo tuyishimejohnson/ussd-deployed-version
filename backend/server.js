@@ -13,6 +13,7 @@ const CHW = require("./models/CHW");
 const UserSession = require("./models/UserSession");
 const Location = require("./models/Location");
 const Appointment = require("./models/Appointments");
+const Maternal = require("./models/MaternalRecords");
 
 // Connect to MongoDB
 const databaseUrl = process.env.DATABASE_URL;
@@ -587,6 +588,21 @@ app.get("/", (req, res) => {
       stats: "GET /api/stats",
     },
   });
+});
+
+app.post("/api/maternal", async (req, res) => {
+  try {
+    const data = req.body; // Receive data sent from frontend
+    console.log("data received ===============>", data);
+    // Save maternal data to the database
+    const maternal = new Maternal(data);
+    await maternal.save();
+    // For now, just send it back as confirmation
+    await data.save();
+    res.status(200).json({ message: "Maternal data received", data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(port, () => {
