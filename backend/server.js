@@ -16,6 +16,8 @@ const Appointment = require("./models/Appointments");
 const Maternal = require("./models/MaternalRecords");
 const Malaria = require("./models/MalariaRecords");
 const Nutrition = require("./models/NutritionRecords");
+const Availability = require("./models/Availability");
+const User = require("./models/User");
 
 // Connect to MongoDB
 const databaseUrl = process.env.DATABASE_URL;
@@ -43,15 +45,6 @@ const initializeData = async () => {
       const locationData = new Location(LocationData);
       await locationData.save();
       console.log("Location data initialized");
-    }
-
-    // Initialize CHW mock data
-    // TODO: This mock data will be replaced with real CHW data from the web interface
-    const existingCHWs = await CHW.countDocuments();
-    if (!existingCHWs) {
-      //await CHW.deleteMany({});
-      await CHW.insertMany(CHWMockData);
-      console.log("CHW mock data initialized");
     }
   } catch (error) {
     console.error("Error initializing data:", error);
@@ -599,7 +592,6 @@ app.post("/api/maternal", async (req, res) => {
     // Save maternal data to the database
     const maternal = new Maternal(data);
     await maternal.save();
-    // For now, just send it back as confirmation
     res.status(200).json({ message: "Maternal data received", data });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -630,6 +622,151 @@ app.post("/api/malaria", async (req, res) => {
     res.status(200).json({ message: "Maternal data received", data });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Backend endpoint - replace your existing one
+app.post("/api/availability", async (req, res) => {
+  try {
+    const { availabilities } = req.body;
+
+    if (!availabilities || !Array.isArray(availabilities)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid availability data format" });
+    }
+
+    if (availabilities.length === 0) {
+      return res.status(400).json({ message: "No availability data provided" });
+    }
+
+    // Validate that all entries have required fields
+    for (const availability of availabilities) {
+      if (
+        !availability.userId ||
+        !availability.day ||
+        !availability.availableFrom ||
+        !availability.availableTo
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Missing required fields in availability data" });
+      }
+    }
+
+    const userId = availabilities[0].userId;
+
+    // Delete existing availability for this user
+    // Use the correct field name that matches your schema
+    await Availability.deleteMany({ userId: userId }); // Changed from 'user' to 'userId'
+    console.log(`Deleted existing availability for user: ${userId}`);
+
+    // Option 1: Use insertMany for better performance (Recommended)
+    const availabilityDocuments = availabilities.map((avail) => ({
+      userId: avail.userId, // Make sure this matches your schema field name
+      day: avail.day,
+      availableFrom: avail.availableFrom,
+      availableTo: avail.availableTo,
+      createdAt: new Date(),
+    }));
+
+    const savedAvailabilities = await Availability.insertMany(
+      availabilityDocuments
+    );
+
+    console.log(
+      `Successfully saved ${savedAvailabilities.length} availability records for user: ${userId}`
+    );
+
+    res.status(200).json({
+      message: "Availability saved successfully",
+      count: savedAvailabilities.length,
+      data: savedAvailabilities,
+    });
+  } catch (err) {
+    console.error("Error saving availability:", err);
+
+    // Handle specific MongoDB errors
+    if (err.name === "ValidationError") {
+      return res.status(400).json({
+        message: "Validation error",
+        details: err.message,
+      });
+    }
+
+    if (err.name === "CastError") {
+      return res.status(400).json({
+        message: "Invalid user ID format",
+      });
+    }
+
+    if (err.code === 11000) {
+      return res.status(400).json({
+        message: "Duplicate entry error. Please check your data.",
+        details: err.message,
+      });
+    }
+
+    res.status(500).json({ message: "Failed to save availability" });
+  }
+});
+
+// Optional: Add an endpoint to get user's availability
+// Updated GET endpoint to match the corrected field name
+app.get("/api/availability/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Use the correct field name
+    const availabilities = await Availability.find({ userId: userId }); // Changed from 'user' to 'userId'
+
+    // Transform to match your frontend WeeklySchedule format
+    const weeklySchedule = {
+      monday: { day: "monday", isAvailable: false, startTime: "", endTime: "" },
+      tuesday: {
+        day: "tuesday",
+        isAvailable: false,
+        startTime: "",
+        endTime: "",
+      },
+      wednesday: {
+        day: "wednesday",
+        isAvailable: false,
+        startTime: "",
+        endTime: "",
+      },
+      thursday: {
+        day: "thursday",
+        isAvailable: false,
+        startTime: "",
+        endTime: "",
+      },
+      friday: { day: "friday", isAvailable: false, startTime: "", endTime: "" },
+      saturday: {
+        day: "saturday",
+        isAvailable: false,
+        startTime: "",
+        endTime: "",
+      },
+      sunday: { day: "sunday", isAvailable: false, startTime: "", endTime: "" },
+    };
+
+    // Populate with saved data
+    availabilities.forEach((avail) => {
+      if (weeklySchedule[avail.day]) {
+        weeklySchedule[avail.day] = {
+          day: avail.day,
+          isAvailable: true,
+          startTime: avail.availableFrom,
+          endTime: avail.availableTo,
+        };
+      }
+    });
+
+    res.status(200).json({ schedule: weeklySchedule });
+  } catch (err) {
+    console.error("Error fetching availability:", err);
+    res.status(500).json({ message: "Failed to fetch availability" });
   }
 });
 
