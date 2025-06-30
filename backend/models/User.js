@@ -6,6 +6,7 @@ const UserSchema = new mongoose.Schema({
   sector: { type: String, required: true },
   cell: { type: String, required: true },
   village: { type: String, required: true },
+  specialization: { type: String, required: true },
   password: { type: String, required: true },
 });
 

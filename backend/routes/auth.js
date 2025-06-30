@@ -9,7 +9,16 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Signup
 router.post("/signup", async (req, res) => {
   console.log(req.body);
-  const { name, phone, district, sector, cell, village, password } = req.body;
+  const {
+    name,
+    phone,
+    district,
+    sector,
+    cell,
+    village,
+    specialization,
+    password,
+  } = req.body;
   const existingUser = await User.findOne({
     name,
     phone,
@@ -17,6 +26,7 @@ router.post("/signup", async (req, res) => {
     sector,
     cell,
     village,
+    specialization,
   });
   if (existingUser)
     return res.status(400).json({ message: "User already exists" });
@@ -29,6 +39,7 @@ router.post("/signup", async (req, res) => {
     sector,
     cell,
     village,
+    specialization,
     password: hashedPassword,
   });
   console.log(user);
@@ -59,6 +70,7 @@ router.post("/login", async (req, res) => {
       sector: user.sector,
       cell: user.cell,
       village: user.village,
+      specialization: user.specialization,
     },
   });
 });

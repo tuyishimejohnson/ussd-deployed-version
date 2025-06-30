@@ -1,5 +1,24 @@
+const mongoose = require("mongoose");
+const CHW = require("./models/CHW"); // Adjust path as needed
+
 // Mock Community Health Workers data
-// TODO: Replace this mock data with real CHW data from the web interface
+// Instead of using mock data, fetch CHW users from MongoDB
+
+// Example using Mongoose (assuming you have a CHW model defined):
+
+// Function to get all active CHWs
+async function getActiveCHWs() {
+  try {
+    // Fetch only active CHWs
+    const chws = await CHW.find({ isActive: true });
+    return chws;
+  } catch (error) {
+    console.error("Error fetching CHWs:", error);
+    return [];
+  }
+}
+
+module.exports = { getActiveCHWs };
 module.exports = [
   // Gashinge Village CHWs
   {

@@ -18,6 +18,7 @@ const Malaria = require("./models/MalariaRecords");
 const Nutrition = require("./models/NutritionRecords");
 const Availability = require("./models/Availability");
 const User = require("./models/User");
+const messages = require("./messages/messages_ussd");
 
 // Connect to MongoDB
 const databaseUrl = process.env.DATABASE_URL;
@@ -39,7 +40,6 @@ app.use("/api/auth", router);
 // Initialize data
 const initializeData = async () => {
   try {
-    // Initialize location data
     const existingLocationData = await Location.findOne();
     if (!existingLocationData) {
       const locationData = new Location(LocationData);
@@ -76,75 +76,66 @@ const getLocationData = async () => {
   return await Location.findOne();
 };
 
-const getCHWsByVillage = async (district, sector, cell, village) => {
-  return await CHW.find({
-    district,
-    sector,
-    cell,
-    village,
-    isActive: true,
+// Get all users from MongoDB
+const getUsersByLocation = async (district, sector, cell, village) => {
+  // Find users matching the selected location and who are active
+  const users = await User.find({
+    district: district,
+    sector: sector,
+    cell: cell,
+    village: village,
   });
-};
 
-const isTimeInRange = (currentHour, startHour, endHour) => {
-  return currentHour >= startHour && currentHour < endHour;
-};
+  // For each user, fetch their availability records
+  const usersWithAvailability = await Promise.all(
+    users.map(async (user) => {
+      const availabilities = await Availability.find({ userId: user._id });
+      // Build an object with days as keys and hours as values
+      const availabilityByDay = {};
+      availabilities.forEach((avail) => {
+        availabilityByDay[
+          avail.day.toLowerCase()
+        ] = `${avail.availableFrom} - ${avail.availableTo}`;
+      });
+      return {
+        ...user.toObject(),
+        availabilities: availabilityByDay,
+      };
+    })
+  );
 
-const isWithinBusinessHours = (availableHours) => {
-  const currentHour = new Date().getHours();
-  return isTimeInRange(currentHour, availableHours.start, availableHours.end);
+  console.log(
+    "==================++++++++++++++ availability for users",
+    usersWithAvailability
+  );
+  return usersWithAvailability;
 };
+// const isTimeInRange = (currentHour, startHour, endHour) => {
+//   return currentHour >= startHour && currentHour < endHour;
+// };
 
-// USSD Messages
-const messages = {
-  en: {
-    welcome:
-      "CON Welcome to Patient Management System\nSelect your preferred language:",
-    selectDistrict: "CON Select your district:",
-    selectSector: "CON Select your sector:",
-    selectCell: "CON Select your cell:",
-    selectVillage: "CON Select your village:",
-    selectCHW: "CON Available Community Health Workers:",
-    noCHWsAvailable:
-      "END Sorry, no Community Health Workers are currently available in your village. Please try again later.",
-    chwNotAvailable:
-      "END The selected CHW is currently not available. Available hours: {hours}",
-    appointmentBooked:
-      "END Appointment successfully booked!\nCHW: {chw}\nVillage: {village}\nYou will be contacted soon.",
-    completion:
-      "END Thank you! Your selection has been recorded.\nDistrict: {district}\nSector: {sector}\nCell: {cell}\nVillage: {village}",
-    error: "END Sorry, an error occurred. Please try again.",
-    invalidInput: "CON Invalid input. Please try again:",
-    goBack: "0. Go Back",
-    available: "Available",
-    notAvailable: "Not Available",
-    specialization: "Specialization",
-    experience: "Experience",
-  },
-  rw: {
-    welcome: "CON Murakaza neza kuri sisitemu y'ubuvuzi\nHitamo ururimi:",
-    selectDistrict: "CON Hitamo akarere kawe:",
-    selectSector: "CON Hitamo umurenge wawe:",
-    selectCell: "CON Hitamo akagari kawe:",
-    selectVillage: "CON Hitamo umudugudu wawe:",
-    selectCHW: "CON Abashinzwe ubuzima bo mu mudugudu bahari:",
-    noCHWsAvailable:
-      "END Ihangane, nta bashinzwe ubuzima bahari mu mudugudu wawe. Ongera ugerageze nyuma.",
-    chwNotAvailable:
-      "END Ushinzwe ubuzima wahisemo ntabwo ari hafi. Amasaha akora: {hours}",
-    appointmentBooked:
-      "END Igihe cyo guhura cyarateguwe neza!\nUshinzwe ubuzima: {chw}\nUmudugudu: {village}\nUzavugana nawe vuba.",
-    completion:
-      "END Murakoze! Amakuru yanyu yarakiriwe.\nAkarere: {district}\nUmurenge: {sector}\nAkagari: {cell}\nUmudugudu: {village}",
-    error: "END Ihangane, habaye ikosa. Ongera ugerageze.",
-    invalidInput: "CON Ikinyuranyo cidakwiye. Ongera ugerageze:",
-    goBack: "0. Subira Inyuma",
-    available: "Arahari",
-    notAvailable: "Ntahari",
-    specialization: "Ubumenyi",
-    experience: "Uburambe",
-  },
-};
+// const isWithinBusinessHours = (availabilities) => {
+//   const currentDate = new Date();
+//   const currentHour = currentDate.getHours();
+//   const currentDay = currentDate
+//     .toLocaleString("en-us", { weekday: "long" })
+//     .toLowerCase();
+
+//   const todayAvailability = availabilities.find(
+//     (avail) => avail.day.toLowerCase() === currentDay
+//   );
+
+//   if (!todayAvailability) return false;
+
+//   const [startHour, startMinute] = todayAvailability.availableFrom
+//     .split(":")
+//     .map(Number);
+//   const [endHour, endMinute] = todayAvailability.availableTo
+//     .split(":")
+//     .map(Number);
+
+//   return isTimeInRange(currentHour, startHour, endHour);
+// };
 
 // Main USSD handler
 app.post("/", async (req, res) => {
@@ -166,6 +157,43 @@ app.post("/", async (req, res) => {
       response += "\n1. English";
       response += "\n2. Kinyarwanda";
       await updateSession(phoneNumber, { currentStep: "language" });
+    } else if (
+      session.currentStep === "language" &&
+      (lastInput === "1" || lastInput === "2")
+    ) {
+      // After language selection, prompt for user's name
+      const lang = lastInput === "1" ? "en" : "rw";
+      await updateSession(phoneNumber, {
+        selectedLanguage: lang,
+        currentStep: "name",
+      });
+      response =
+        lang === "en"
+          ? "CON Please enter your full name:"
+          : "CON Andika izina ryawe ryuzuye:";
+    }
+    // Handle name input
+    else if (session.currentStep === "name") {
+      const lang = session.selectedLanguage || "en";
+      const msg = messages[lang];
+      const name = lastInput && lastInput.trim();
+      if (!name) {
+        response =
+          lang === "en"
+            ? "CON Invalid name. Please enter your full name:"
+            : "CON Izina ntirikwiye. Andika izina ryawe ryuzuye:";
+      } else {
+        await updateSession(phoneNumber, {
+          userName: name,
+          currentStep: "district",
+        });
+        response = msg.selectDistrict;
+        locationData.districts.forEach((district, index) => {
+          const districtName = lang === "en" ? district.name : district.nameRw;
+          response += `\n${index + 1}. ${districtName}`;
+        });
+        response += `\n${msg.goBack}`;
+      }
     }
     // Handle language selection
     else if (session.currentStep === "language") {
@@ -347,40 +375,63 @@ app.post("/", async (req, res) => {
         const villageIndex = parseInt(lastInput) - 1;
         if (villageIndex >= 0 && villageIndex < cell.villages.length) {
           const selectedVillage = cell.villages[villageIndex];
+          console.log(
+            `Selected location - District: ${session.selectedDistrict}, Sector: ${session.selectedSector}, Cell: ${session.selectedCell}, Village: ${selectedVillage.name}`
+          );
 
           await updateSession(phoneNumber, {
             selectedVillage: selectedVillage.name,
-            currentStep: "chw_selection",
+            currentStep: "user_selection",
           });
 
-          // Get CHWs for this village
-          const chws = await getCHWsByVillage(
+          console.log(`Transitioning to user_selection with location:`, {
+            district: session.selectedDistrict,
+            sector: session.selectedSector,
+            cell: session.selectedCell,
+            village: selectedVillage.name,
+          });
+          // Get users for this village
+          const users = await getUsersByLocation(
             session.selectedDistrict,
             session.selectedSector,
             session.selectedCell,
             selectedVillage.name
           );
 
-          if (chws.length === 0) {
-            response = msg.noCHWsAvailable;
+          console.log(
+            `Users retrieved:`,
+            users.map((u) => ({
+              name: u.name,
+              specialization: u.specialization,
+            }))
+          );
+          if (users.length === 0) {
+            console.log(`No users found for location:`, {
+              district: session.selectedDistrict,
+              sector: session.selectedSector,
+              cell: session.selectedCell,
+              village: selectedVillage.name,
+            });
+            response = msg.noUsersAvailable;
           } else {
-            response = msg.selectCHW;
-            chws.forEach((chw, index) => {
-              const chwName = lang === "en" ? chw.name : chw.nameRw;
-              const specializations =
-                lang === "en"
-                  ? chw.specializations.join(", ")
-                  : chw.specializationsRw.join(", ");
-              const experience =
-                lang === "en" ? chw.experience : chw.experienceRw;
-              const availability = isWithinBusinessHours(chw.availableHours)
-                ? msg.available
-                : msg.notAvailable;
+            response = msg.selectUser;
+            users.forEach((user, index) => {
+              const userName =
+                lang === "en" ? user.name : user.nameRw || user.name;
 
-              response += `\n${index + 1}. ${chwName}`;
-              response += `\n   ${msg.specialization}: ${specializations}`;
-              response += `\n   ${msg.experience}: ${experience}`;
-              response += `\n   Status: ${availability}`;
+              response += `\n${index + 1}. ${userName}`;
+              response += `\n   ${msg.role}: ${user.specialization}`;
+              // Format availability hours as a string, e.g., "Mon: 08:00-17:00, Thu: 08:00-17:00"
+              const availabilityStr = Object.entries(user.availabilities)
+                .map(([day, hours]) => {
+                  // Capitalize first letter of day
+                  const dayLabel =
+                    day.charAt(0).toUpperCase() + day.slice(1, 3);
+                  return `${dayLabel}: ${hours}`;
+                })
+                .join(", ");
+              response += `\n   Status: ${availabilityStr || "N/A"}`;
+              response += `\n   Village: ${selectedVillage.name}`;
               response += "\n";
             });
             response += `\n${msg.goBack}`;
@@ -396,13 +447,13 @@ app.post("/", async (req, res) => {
         }
       }
     }
-    // Handle CHW selection
-    else if (session.currentStep === "chw_selection") {
+
+    // Handle user selection
+    else if (session.currentStep === "user_selection") {
       const lang = session.selectedLanguage || "en";
       const msg = messages[lang];
 
       if (lastInput === "0") {
-        // Go back to village selection
         const district = locationData.districts.find(
           (d) => d.name === session.selectedDistrict
         );
@@ -419,66 +470,60 @@ app.post("/", async (req, res) => {
         response += `\n${msg.goBack}`;
         await updateSession(phoneNumber, { currentStep: "village" });
       } else {
-        const chwIndex = parseInt(lastInput) - 1;
-        const chws = await getCHWsByVillage(
+        const userIndex = parseInt(lastInput) - 1;
+        const users = await getUsersByLocation(
           session.selectedDistrict,
           session.selectedSector,
           session.selectedCell,
           session.selectedVillage
         );
 
-        if (chwIndex >= 0 && chwIndex < chws.length) {
-          const selectedCHW = chws[chwIndex];
+        if (userIndex >= 0 && userIndex < users.length) {
+          const selectedUser = users[userIndex];
 
-          // Check if CHW is available
-          if (!isWithinBusinessHours(selectedCHW.availableHours)) {
-            const hours = `${selectedCHW.availableHours.start}:00 - ${selectedCHW.availableHours.end}:00`;
-            response = msg.chwNotAvailable.replace("{hours}", hours);
+          // Check if user is available
+          if (!selectedUser.availabilities) {
+            response = msg.userNotAvailable;
           } else {
             // Book appointment
             const appointment = new Appointment({
               patientPhoneNumber: phoneNumber,
-              chwId: selectedCHW._id,
-              chwName: selectedCHW.name,
+              userId: selectedUser._id,
+              userName: selectedUser.name,
               district: session.selectedDistrict,
               sector: session.selectedSector,
               cell: session.selectedCell,
               village: session.selectedVillage,
+              createdAt: new Date(),
             });
             await appointment.save();
 
             await updateSession(phoneNumber, {
-              selectedCHW: selectedCHW.name,
-              selectedCHWId: selectedCHW._id.toString(),
+              selectedUser: selectedUser.name,
+              selectedUserId: selectedUser._id.toString(),
               appointmentBooked: true,
               currentStep: "completed",
             });
 
-            const chwName =
-              lang === "en" ? selectedCHW.name : selectedCHW.nameRw;
+            const userName =
+              lang === "en"
+                ? selectedUser.name
+                : selectedUser.nameRw || selectedUser.name;
             response = msg.appointmentBooked
-              .replace("{chw}", chwName)
+              .replace("{user}", userName)
               .replace("{village}", session.selectedVillage);
           }
         } else {
           response = msg.invalidInput;
-          response += "\n" + msg.selectCHW;
-          chws.forEach((chw, index) => {
-            const chwName = lang === "en" ? chw.name : chw.nameRw;
-            const specializations =
-              lang === "en"
-                ? chw.specializations.join(", ")
-                : chw.specializationsRw.join(", ");
-            const experience =
-              lang === "en" ? chw.experience : chw.experienceRw;
-            const availability = isWithinBusinessHours(chw.availableHours)
-              ? msg.available
-              : msg.notAvailable;
+          response += "\n" + msg.selectUser;
+          users.forEach((user, index) => {
+            const userName =
+              lang === "en" ? user.name : user.nameRw || user.name;
 
-            response += `\n${index + 1}. ${chwName}`;
-            response += `\n   ${msg.specialization}: ${specializations}`;
-            response += `\n   ${msg.experience}: ${experience}`;
-            response += `\n   Status: ${availability}`;
+            response += `\n${index + 1}. ${userName}`;
+            response += `\n   ${msg.role}: ${user.role || "N/A"}`;
+            response += `\n   Status: ${user.availabilities}`;
+            response += `\n   Village: ${session.selectedVillage}`;
             response += "\n";
           });
           response += `\n${msg.goBack}`;
@@ -514,10 +559,10 @@ app.get("/api/locations", async (req, res) => {
   }
 });
 
-app.get("/api/chws", async (req, res) => {
+app.get("/api/users", async (req, res) => {
   try {
-    const chws = await CHW.find().sort({ village: 1, name: 1 });
-    res.json(chws);
+    const users = await User.find().sort({ name: 1 });
+    res.json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -532,6 +577,18 @@ app.get("/api/appointments", async (req, res) => {
   }
 });
 
+app.get("/api/appointments/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const appointments = await Appointment.find({ userId }).sort({
+      createdAt: -1,
+    });
+    res.json(appointments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/stats", async (req, res) => {
   try {
     const totalSessions = await UserSession.countDocuments();
@@ -539,8 +596,8 @@ app.get("/api/stats", async (req, res) => {
       currentStep: "completed",
     });
     const totalAppointments = await Appointment.countDocuments();
-    const totalCHWs = await CHW.countDocuments();
-    const activeCHWs = await CHW.countDocuments({ isActive: true });
+    const totalUsers = await User.countDocuments();
+    const activeUsers = await User.countDocuments({ isActive: true });
 
     const languageStats = await UserSession.aggregate([
       { $group: { _id: "$selectedLanguage", count: { $sum: 1 } } },
@@ -559,8 +616,8 @@ app.get("/api/stats", async (req, res) => {
       totalSessions,
       completedSessions,
       totalAppointments,
-      totalCHWs,
-      activeCHWs,
+      totalUsers,
+      activeUsers,
       languageStats,
       districtStats,
       appointmentStats,
@@ -572,14 +629,15 @@ app.get("/api/stats", async (req, res) => {
 
 app.get("/", (req, res) => {
   res.json({
-    message: "CHW USSD Backend API",
+    message: "USSD Backend API",
     version: "1.0.0",
     endpoints: {
       ussd: "POST /",
       sessions: "GET /api/sessions",
       locations: "GET /api/locations",
-      chws: "GET /api/chws",
+      users: "GET /api/users",
       appointments: "GET /api/appointments",
+      userAppointments: "GET /api/appointments/user/:userId",
       stats: "GET /api/stats",
     },
   });
@@ -587,9 +645,8 @@ app.get("/", (req, res) => {
 
 app.post("/api/maternal", async (req, res) => {
   try {
-    const data = req.body; // Receive data sent from frontend
+    const data = req.body;
     console.log("data received ===============>", data);
-    // Save maternal data to the database
     const maternal = new Maternal(data);
     await maternal.save();
     res.status(200).json({ message: "Maternal data received", data });
@@ -600,32 +657,28 @@ app.post("/api/maternal", async (req, res) => {
 
 app.post("/api/nutrition", async (req, res) => {
   try {
-    const data = req.body; // Receive data sent from frontend
+    const data = req.body;
     console.log("data received ===============>", data);
-    // Save maternal data to the database
     const nutrition = new Nutrition(data);
     await nutrition.save();
-    // For now, just send it back as confirmation
-    res.status(200).json({ message: "Maternal data received", data });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-app.post("/api/malaria", async (req, res) => {
-  try {
-    const data = req.body; // Receive data sent from frontend
-    console.log("data received ===============>", data);
-    // Save maternal data to the database
-    const malaria = new Malaria(data);
-    await malaria.save();
-    // For now, just send it back as confirmation
-    res.status(200).json({ message: "Maternal data received", data });
+    res.status(200).json({ message: "Nutrition data received", data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Backend endpoint - replace your existing one
+app.post("/api/malaria", async (req, res) => {
+  try {
+    const data = req.body;
+    console.log("data received ===============>", data);
+    const malaria = new Malaria(data);
+    await malaria.save();
+    res.status(200).json({ message: "Malaria data received", data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/availability", async (req, res) => {
   try {
     const { availabilities } = req.body;
@@ -640,7 +693,6 @@ app.post("/api/availability", async (req, res) => {
       return res.status(400).json({ message: "No availability data provided" });
     }
 
-    // Validate that all entries have required fields
     for (const availability of availabilities) {
       if (
         !availability.userId ||
@@ -656,14 +708,11 @@ app.post("/api/availability", async (req, res) => {
 
     const userId = availabilities[0].userId;
 
-    // Delete existing availability for this user
-    // Use the correct field name that matches your schema
-    await Availability.deleteMany({ userId: userId }); // Changed from 'user' to 'userId'
+    await Availability.deleteMany({ userId: userId });
     console.log(`Deleted existing availability for user: ${userId}`);
 
-    // Option 1: Use insertMany for better performance (Recommended)
     const availabilityDocuments = availabilities.map((avail) => ({
-      userId: avail.userId, // Make sure this matches your schema field name
+      userId: avail.userId,
       day: avail.day,
       availableFrom: avail.availableFrom,
       availableTo: avail.availableTo,
@@ -686,7 +735,6 @@ app.post("/api/availability", async (req, res) => {
   } catch (err) {
     console.error("Error saving availability:", err);
 
-    // Handle specific MongoDB errors
     if (err.name === "ValidationError") {
       return res.status(400).json({
         message: "Validation error",
@@ -711,16 +759,11 @@ app.post("/api/availability", async (req, res) => {
   }
 });
 
-// Optional: Add an endpoint to get user's availability
-// Updated GET endpoint to match the corrected field name
 app.get("/api/availability/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
+    const availabilities = await Availability.find({ userId: userId });
 
-    // Use the correct field name
-    const availabilities = await Availability.find({ userId: userId }); // Changed from 'user' to 'userId'
-
-    // Transform to match your frontend WeeklySchedule format
     const weeklySchedule = {
       monday: { day: "monday", isAvailable: false, startTime: "", endTime: "" },
       tuesday: {
@@ -751,7 +794,6 @@ app.get("/api/availability/:userId", async (req, res) => {
       sunday: { day: "sunday", isAvailable: false, startTime: "", endTime: "" },
     };
 
-    // Populate with saved data
     availabilities.forEach((avail) => {
       if (weeklySchedule[avail.day]) {
         weeklySchedule[avail.day] = {
@@ -771,5 +813,5 @@ app.get("/api/availability/:userId", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`CHW USSD Backend running on port ${port}`);
+  console.log(`USSD Backend running on port ${port}`);
 });
