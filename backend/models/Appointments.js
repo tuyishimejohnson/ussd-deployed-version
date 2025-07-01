@@ -2,8 +2,9 @@ const mongoose = require("mongoose");
 
 const AppointmentSchema = new mongoose.Schema({
   patientPhoneNumber: String,
+  patientName: String,
   chwId: String,
-  chwName: String,
+  userName: String,
   district: String,
   sector: String,
   cell: String,

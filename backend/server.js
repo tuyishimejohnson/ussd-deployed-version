@@ -150,6 +150,10 @@ app.post("/", async (req, res) => {
 
     console.log("Current session step:", session.currentStep);
     console.log("Last input:", lastInput);
+    console.log(
+      "Patient name from session:===============================>",
+      session.userName
+    );
 
     // Language selection
     if (text === "") {
@@ -187,6 +191,16 @@ app.post("/", async (req, res) => {
           userName: name,
           currentStep: "district",
         });
+
+        // Save patient name in Appointment schema for future appointments
+        // (the actual appointment is created later, but we store the name in the session here)
+
+        console.log(`Patient name saved: ${name} for phone: ${phoneNumber}`);
+
+        response =
+          (lang === "en" ? `CON Hello ${name}! ` : `CON Muraho ${name}! `) +
+          msg.selectDistrict;
+
         response = msg.selectDistrict;
         locationData.districts.forEach((district, index) => {
           const districtName = lang === "en" ? district.name : district.nameRw;
@@ -200,7 +214,7 @@ app.post("/", async (req, res) => {
       if (lastInput === "1") {
         await updateSession(phoneNumber, {
           selectedLanguage: "en",
-          currentStep: "district",
+          currentStep: "name",
         });
         response = messages.en.selectDistrict;
         locationData.districts.forEach((district, index) => {
@@ -376,7 +390,7 @@ app.post("/", async (req, res) => {
         if (villageIndex >= 0 && villageIndex < cell.villages.length) {
           const selectedVillage = cell.villages[villageIndex];
           console.log(
-            `Selected location - District: ${session.selectedDistrict}, Sector: ${session.selectedSector}, Cell: ${session.selectedCell}, Village: ${selectedVillage.name}`
+            `Selected location - User Name: ${session.userName}, District: ${session.selectedDistrict}, Sector: ${session.selectedSector}, Cell: ${session.selectedCell}, Village: ${selectedVillage.name}`
           );
 
           await updateSession(phoneNumber, {
@@ -414,7 +428,10 @@ app.post("/", async (req, res) => {
             });
             response = msg.noUsersAvailable;
           } else {
-            response = msg.selectUser;
+            // Include the user's name in the response for confirmation
+            response = `${msg.selectUser}\n${msg.enteredName || "Name"}: ${
+              session.userName
+            }`;
             users.forEach((user, index) => {
               const userName =
                 lang === "en" ? user.name : user.nameRw || user.name;
@@ -490,6 +507,7 @@ app.post("/", async (req, res) => {
               patientPhoneNumber: phoneNumber,
               userId: selectedUser._id,
               userName: selectedUser.name,
+              patientName: session.userName, // <-- Send the name here
               district: session.selectedDistrict,
               sector: session.selectedSector,
               cell: session.selectedCell,
@@ -509,9 +527,11 @@ app.post("/", async (req, res) => {
               lang === "en"
                 ? selectedUser.name
                 : selectedUser.nameRw || selectedUser.name;
+            // Include the user's name in the confirmation message
             response = msg.appointmentBooked
               .replace("{user}", userName)
-              .replace("{village}", session.selectedVillage);
+              .replace("{village}", session.selectedVillage)
+              .replace("{name}", session.userName || "");
           }
         } else {
           response = msg.invalidInput;
@@ -532,6 +552,7 @@ app.post("/", async (req, res) => {
     }
 
     setTimeout(() => {
+      // Also send the name in the response for debugging or confirmation if needed
       res.send(response);
     }, 1000);
   } catch (error) {

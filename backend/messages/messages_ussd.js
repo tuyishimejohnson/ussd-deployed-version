@@ -27,7 +27,7 @@ module.exports = {
     selectSector: "CON Hitamo umurenge wawe:",
     selectCell: "CON Hitamo akagari kawe:",
     selectVillage: "CON Hitamo umudugudu wawe:",
-    selectUser: "CON Abakoresha bahari mu mudugudu wawe:",
+    selectUser: "CON Abajyanama bahari mu mudugudu wawe:",
     noUsersAvailable:
       "END Ihangane, nta bajyanama bahari mu mudugudu wawe. Ongera ugerageze nyuma.",
     userNotAvailable: "END Umukoresha wahisemo ntabwo ari hafi.",

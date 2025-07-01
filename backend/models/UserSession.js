@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const UserSessionSchema = new mongoose.Schema({
   phoneNumber: String,
+  userName: String,
   currentStep: { type: String, default: "language" },
   selectedLanguage: String,
   selectedDistrict: String,
