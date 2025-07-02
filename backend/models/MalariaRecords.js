@@ -1,6 +1,25 @@
 const mongoose = require("mongoose");
 
 const MalariaRecordSchema = new mongoose.Schema({
+  patientName: {
+    type: String,
+  },
+  age: {
+    type: String,
+  },
+  gender: {
+    type: String,
+    enum: ["male", "female", "other"],
+  },
+  address: {
+    type: String,
+  },
+  contactNumber: {
+    type: String,
+  },
+  notes: {
+    type: String,
+  },
   symptoms: {
     type: [String],
     default: [],
@@ -22,15 +41,12 @@ const MalariaRecordSchema = new mongoose.Schema({
   },
   treatmentGiven: {
     type: String,
-    default: "",
   },
   treatmentDate: {
     type: String,
-    default: () => new Date().toISOString().split("T")[0],
   },
   followUpDate: {
     type: String,
-    default: "",
   },
   complications: {
     type: [String],

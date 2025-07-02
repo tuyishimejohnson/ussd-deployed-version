@@ -2,6 +2,27 @@ const mongoose = require("mongoose");
 
 const NutritionRecordSchema = new mongoose.Schema(
   {
+    patientName: {
+      type: String,
+      required: true,
+    },
+    age: {
+      type: String,
+      required: true,
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      required: true,
+    },
+    address: {
+      type: String,
+      required: true,
+    },
+    contactNumber: {
+      type: String,
+      required: true,
+    },
     childAge: {
       type: String,
       required: true,
@@ -40,6 +61,10 @@ const NutritionRecordSchema = new mongoose.Schema(
       required: true,
     },
     referralLocation: {
+      type: String,
+      default: "",
+    },
+    notes: {
       type: String,
       default: "",
     },
