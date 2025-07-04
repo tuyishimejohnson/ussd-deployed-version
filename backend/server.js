@@ -664,6 +664,36 @@ app.get("/", (req, res) => {
   });
 });
 
+// For fetching maternal data
+app.get("/api/maternal", async (req, res) => {
+  try {
+    const maternalData = await Maternal.find();
+    res.status(200).json(maternalData);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add GET endpoint to fetch all nutrition data
+app.get("/api/nutrition", async (req, res) => {
+  try {
+    const nutritionData = await Nutrition.find();
+    res.status(200).json(nutritionData);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add GET endpoint to fetch all malaria data
+app.get("/api/malaria", async (req, res) => {
+  try {
+    const malariaData = await Malaria.find();
+    res.status(200).json(malariaData);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/maternal", async (req, res) => {
   try {
     const data = req.body;
