@@ -21,12 +21,6 @@ const MalariaRecordSchema = new mongoose.Schema({
     type: String,
   },
 
-  // Change recordedBy to reference the User model
-  recordedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
   symptoms: {
     type: [String],
     default: [],
@@ -58,6 +52,9 @@ const MalariaRecordSchema = new mongoose.Schema({
   complications: {
     type: [String],
     default: [],
+  },
+  recordedBy: {
+    type: String,
   },
 });
 

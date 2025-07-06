@@ -687,7 +687,7 @@ app.get("/api/nutrition", async (req, res) => {
 // Add GET endpoint to fetch all malaria data
 app.get("/api/malaria", async (req, res) => {
   try {
-    const malariaData = await Malaria.find();
+    const malariaData = await Malaria.find().populate("recordedBy", "name");
     res.status(200).json(malariaData);
   } catch (error) {
     res.status(500).json({ error: error.message });

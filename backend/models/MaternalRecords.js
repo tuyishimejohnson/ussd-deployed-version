@@ -6,11 +6,8 @@ const MaternalSchema = new mongoose.Schema({
   gender: { type: String, required: true },
   address: { type: String },
   contactNumber: { type: String },
-  // Change recordedBy to reference the User model
   recordedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+    type: String,
   },
   notes: { type: String },
   pregnancyStatus: {

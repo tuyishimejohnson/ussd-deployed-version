@@ -11,11 +11,8 @@ const NutritionRecordSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Change recordedBy to reference the User model
     recordedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      type: String,
     },
     gender: {
       type: String,
