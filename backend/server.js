@@ -8,8 +8,6 @@ const app = express();
 app.use(express.json());
 const port = process.env.PORT || 8000;
 const LocationData = require("./locations");
-const CHWMockData = require("./chw-mock-data");
-const CHW = require("./models/CHW");
 const UserSession = require("./models/UserSession");
 const Location = require("./models/Location");
 const Appointment = require("./models/Appointments");
