@@ -598,6 +598,32 @@ app.get("/api/appointments", async (req, res) => {
   }
 });
 
+app.get("/api/appointments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const appointment = await Appointment.findById(id);
+    if (!appointment) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+    res.status(200).json(appointment);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/appointments/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Appointment.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Appointment not found" });
+    }
+    res.status(200).json({ message: "Appointment deleted", id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get("/api/appointments/user/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -725,6 +751,45 @@ app.post("/api/malaria", async (req, res) => {
     const malaria = new Malaria(data);
     await malaria.save();
     res.status(200).json({ message: "Malaria data received", data });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/malaria/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Malaria.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Malaria record not found" });
+    }
+    res.status(200).json({ message: "Malaria record deleted", id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/maternal/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Maternal.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Maternal record not found" });
+    }
+    res.status(200).json({ message: "Maternal record deleted", id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/nutrition/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await Nutrition.findByIdAndDelete(id);
+    if (!deleted) {
+      return res.status(404).json({ message: "Nutrition record not found" });
+    }
+    res.status(200).json({ message: "Nutrition record deleted", id });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
