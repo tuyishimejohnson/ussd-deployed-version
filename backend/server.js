@@ -110,32 +110,6 @@ const getUsersByLocation = async (district, sector, cell, village) => {
   );
   return usersWithAvailability;
 };
-// const isTimeInRange = (currentHour, startHour, endHour) => {
-//   return currentHour >= startHour && currentHour < endHour;
-// };
-
-// const isWithinBusinessHours = (availabilities) => {
-//   const currentDate = new Date();
-//   const currentHour = currentDate.getHours();
-//   const currentDay = currentDate
-//     .toLocaleString("en-us", { weekday: "long" })
-//     .toLowerCase();
-
-//   const todayAvailability = availabilities.find(
-//     (avail) => avail.day.toLowerCase() === currentDay
-//   );
-
-//   if (!todayAvailability) return false;
-
-//   const [startHour, startMinute] = todayAvailability.availableFrom
-//     .split(":")
-//     .map(Number);
-//   const [endHour, endMinute] = todayAvailability.availableTo
-//     .split(":")
-//     .map(Number);
-
-//   return isTimeInRange(currentHour, startHour, endHour);
-// };
 
 // Main USSD handler
 app.post("/", async (req, res) => {
