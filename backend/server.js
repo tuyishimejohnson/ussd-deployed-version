@@ -720,6 +720,45 @@ app.get("/api/malaria", async (req, res) => {
   }
 });
 
+app.get("/api/malaria/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const malaria = await Malaria.findById(id).populate("recordedBy", "name");
+    if (!malaria) {
+      return res.status(404).json({ message: "Malaria record not found" });
+    }
+    res.status(200).json(malaria);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/maternal/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const maternal = await Maternal.findById(id);
+    if (!maternal) {
+      return res.status(404).json({ message: "Maternal record not found" });
+    }
+    res.status(200).json(maternal);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/nutrition/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const nutrition = await Nutrition.findById(id);
+    if (!nutrition) {
+      return res.status(404).json({ message: "Nutrition record not found" });
+    }
+    res.status(200).json(nutrition);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post("/api/maternal", async (req, res) => {
   try {
     const data = req.body;
