@@ -17,6 +17,7 @@ const Nutrition = require("./models/NutritionRecords");
 const Availability = require("./models/Availability");
 const User = require("./models/User");
 const messages = require("./messages/messages_ussd");
+const { processQuery } = require("./langchainHandler");
 
 // Connect to MongoDB
 const databaseUrl = process.env.DATABASE_URL;
@@ -88,7 +89,7 @@ const getUsersByLocation = async (district, sector, cell, village) => {
   const usersWithAvailability = await Promise.all(
     users.map(async (user) => {
       const availabilities = await Availability.find({ userId: user._id });
-      // Build an object with days as keys and hours as values
+      // object with days as keys and hours as values
       const availabilityByDay = {};
       availabilities.forEach((avail) => {
         availabilityByDay[
@@ -102,10 +103,6 @@ const getUsersByLocation = async (district, sector, cell, village) => {
     })
   );
 
-  console.log(
-    "==================++++++++++++++ availability for users",
-    usersWithAvailability
-  );
   return usersWithAvailability;
 };
 
@@ -119,13 +116,6 @@ app.post("/", async (req, res) => {
     const locationData = await getLocationData();
     const inputArray = text.split("*");
     const lastInput = inputArray[inputArray.length - 1];
-
-    console.log("Current session step:", session.currentStep);
-    console.log("Last input:", lastInput);
-    console.log(
-      "Patient name from session:===============================>",
-      session.userName
-    );
 
     // Language selection
     if (text === "") {
@@ -166,8 +156,6 @@ app.post("/", async (req, res) => {
 
         // Save patient name in Appointment schema for future appointments
         // (the actual appointment is created later, but we store the name in the session here)
-
-        console.log(`Patient name saved: ${name} for phone: ${phoneNumber}`);
 
         response =
           (lang === "en" ? `CON Hello ${name}! ` : `CON Muraho ${name}! `) +
@@ -662,7 +650,7 @@ app.get("/", (req, res) => {
   });
 });
 
-// For fetching maternal data
+// fetch maternal data
 app.get("/api/maternal", async (req, res) => {
   try {
     const maternalData = await Maternal.find();
@@ -672,7 +660,7 @@ app.get("/api/maternal", async (req, res) => {
   }
 });
 
-// Add GET endpoint to fetch all nutrition data
+// fetch all nutrition data
 app.get("/api/nutrition", async (req, res) => {
   try {
     const nutritionData = await Nutrition.find();
@@ -682,7 +670,7 @@ app.get("/api/nutrition", async (req, res) => {
   }
 });
 
-// Add GET endpoint to fetch all malaria data
+// fetch all malaria data
 app.get("/api/malaria", async (req, res) => {
   try {
     const malariaData = await Malaria.find().populate("recordedBy", "name");
@@ -936,6 +924,33 @@ app.get("/api/availability/:userId", async (req, res) => {
   } catch (err) {
     console.error("Error fetching availability:", err);
     res.status(500).json({ message: "Failed to fetch availability" });
+  }
+});
+
+// Handle chatbot messages
+
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { userInput } = req.body;
+
+    // Load data from all collections
+    const malaria = await Malaria.find().lean();
+    const maternal = await Maternal.find().lean();
+    const nutrition = await Nutrition.find().lean();
+
+    // Combine records
+    const allRecords = [
+      ...malaria.map((rec) => ({ type: "malaria", ...rec })),
+      ...maternal.map((rec) => ({ type: "maternal", ...rec })),
+      ...nutrition.map((rec) => ({ type: "nutrition", ...rec })),
+    ];
+
+    const result = await processQuery(userInput, allRecords);
+
+    res.json({ response: result });
+  } catch (err) {
+    console.error("Error in /api/chat:", err);
+    res.status(500).json({ error: "Something went wrong." });
   }
 });
 
