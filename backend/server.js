@@ -106,6 +106,11 @@ const getUsersByLocation = async (district, sector, cell, village) => {
   return usersWithAvailability;
 };
 
+// Handle 404 page on reload
+app.get("/*", function (req, res) {
+  res.sendFile(path.join(__dirname, "build", "index.html"));
+});
+
 // Main USSD handler
 app.post("/", async (req, res) => {
   try {
