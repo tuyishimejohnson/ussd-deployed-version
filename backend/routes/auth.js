@@ -32,6 +32,20 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ message: "User already exists" });
 
   const hashedPassword = await bcrypt.hash(password, 10);
+
+  // Generate a random 4-digit PIN as a string
+  function generatePin() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  let pin;
+  let pinExists = true;
+  // Ensure the generated PIN is unique
+  while (pinExists) {
+    pin = generatePin();
+    pinExists = await User.findOne({ pin });
+  }
+
   const user = new User({
     name,
     phone,
@@ -41,24 +55,21 @@ router.post("/signup", async (req, res) => {
     village,
     specialization,
     password: hashedPassword,
+    pin,
   });
   console.log(user);
   await user.save();
 
-  res.status(201).json({ message: "User created" });
+  res.status(201).json({ message: "User created", pin });
 });
 
 // Login
 router.post("/login", async (req, res) => {
-  const { name, password } = req.body;
-  const user = await User.findOne({ name });
+  const { name, pin } = req.body;
+  const user = await User.findOne({ name, pin });
   if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
-
   const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "1h" });
-  //res.json({ token });
 
   res.json({
     token,
@@ -71,6 +82,7 @@ router.post("/login", async (req, res) => {
       cell: user.cell,
       village: user.village,
       specialization: user.specialization,
+      pin:user.pin
     },
   });
 });

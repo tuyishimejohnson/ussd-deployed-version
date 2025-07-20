@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
   village: { type: String, required: true },
   specialization: { type: String, required: true },
   password: { type: String, required: true },
+  pin: { type: String, required: true },
 });
 
 module.exports = mongoose.model("User", UserSchema);
