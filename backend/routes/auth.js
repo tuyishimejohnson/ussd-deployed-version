@@ -18,6 +18,7 @@ router.post("/signup", async (req, res) => {
     village,
     specialization,
     password,
+    role,
   } = req.body;
   const existingUser = await User.findOne({
     name,
@@ -56,6 +57,7 @@ router.post("/signup", async (req, res) => {
     specialization,
     password: hashedPassword,
     pin,
+    role,
   });
   console.log(user);
   await user.save();
@@ -65,9 +67,15 @@ router.post("/signup", async (req, res) => {
 
 // Login
 router.post("/login", async (req, res) => {
-  const { name, pin } = req.body;
+  const { name, pin, password } = req.body;
   const user = await User.findOne({ name, pin });
   if (!user) return res.status(400).json({ message: "Invalid credentials" });
+
+  // Compare the entered password with the hashed password
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    return res.status(400).json({ message: "Invalid credentials" });
+  }
 
   const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "1h" });
 
@@ -82,7 +90,8 @@ router.post("/login", async (req, res) => {
       cell: user.cell,
       village: user.village,
       specialization: user.specialization,
-      pin:user.pin
+      pin: user.pin,
+      role: user.role,
     },
   });
 });

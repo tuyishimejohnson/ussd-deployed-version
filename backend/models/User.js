@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   specialization: { type: String, required: true },
   password: { type: String, required: true },
   pin: { type: String, required: true },
+  role: { type: String, required: true, default: 'user' },
 });
 
 module.exports = mongoose.model("User", UserSchema);
