@@ -25,7 +25,6 @@ const NutritionRecordSchema = new mongoose.Schema(
     },
     contactNumber: {
       type: String,
-      required: true,
     },
     childAge: {
       type: String,
