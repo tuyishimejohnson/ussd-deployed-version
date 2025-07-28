@@ -15,7 +15,7 @@ const MaternalSchema = new mongoose.Schema({
     enum: ["pregnant", "postpartum"],
     required: true,
   },
-  gestationWeeks: { type: Number, required: true },
+  gestationWeeks: { type: Number },
   gravida: { type: Number, required: true },
   para: { type: Number, required: true },
   antenatalVisits: { type: Number, required: true },
