@@ -11,7 +11,7 @@ module.exports = {
       "END Sorry, no CHW are currently available in your village. Please try again later.",
     userNotAvailable: "END The selected CHW is currently not available.",
     appointmentBooked:
-      "END Appointment successfully booked!\nCHW: {user}\nVillage: {village}\nYou will be contacted soon.",
+      "END Appointment successfully booked!\nCHW: {user}\nVillage: {village}\nYou can reach out to the CHW.",
     completion:
       "END Thank you! Your selection has been recorded.\nDistrict: {district}\nSector: {sector}\nCell: {cell}\nVillage: {village}",
     error: "END Sorry, an error occurred. Please try again.",
